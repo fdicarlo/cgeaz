@@ -60,6 +60,11 @@ resource "azurerm_service_plan" "reporting" {
 resource "azurerm_linux_function_app" "reporting" {
   https_only = true
 
+  # No publishing passwords: Kudu/zip deploy authenticates with Entra ID (az login).
+  # Basic auth would mint a site credential that lives in Terraform state.
+  ftp_publish_basic_authentication_enabled       = false
+  webdeploy_publish_basic_authentication_enabled = false
+
   name                       = "func-grc-reporting-${random_string.suffix.result}"
   resource_group_name        = local.evidence_rg
   location                   = var.functions_location

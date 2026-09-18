@@ -1,0 +1,42 @@
+# WORM proof — 2026-09-18T13:00:27Z
+operator:   gr***@gmail.com (masked)
+account:    stgrcevidknuh91 (resource group rg-grc-evidence-dev)
+
+## 1. The container policy
+{
+  "protectedAppendWritesAll": false,
+  "retentionDays": 90,
+  "state": "Unlocked"
+}
+
+## 2. The operator's data-plane role on the account (it DOES include delete)
+Storage Blob Data Contributor
+
+## 3. Target: reports/sar/2026/09/sar-2026-09-18T1300Z.md
+{
+  "created": "2026-09-18T13:00:15+00:00",
+  "md5": "QIya0RUDwRb7D7l5Er3ijw==",
+  "size": 2110
+}
+
+## 4. Attempt DELETE (must fail)
+ERROR: This operation is not permitted as the blob is immutable due to a policy.
+RequestId:e144ffa6-b01e-00a2-676d-47df3a000000
+Time:2026-09-18T13:00:35.9331673Z
+ErrorCode:BlobImmutableDueToPolicy
+
+## 5. Attempt OVERWRITE (must fail)
+ERROR: This operation is not permitted as the blob is immutable due to a policy.
+RequestId:d757aa6d-701e-0004-0a6d-476824000000
+Time:2026-09-18T13:00:36.7985130Z
+ErrorCode:BlobImmutableDueToPolicy
+If you want to overwrite the existing one, please add --overwrite in your command.
+
+## 6. The blob is unchanged
+{
+  "created": "2026-09-18T13:00:15+00:00",
+  "md5": "QIya0RUDwRb7D7l5Er3ijw==",
+  "size": 2110
+}
+
+RESULT: delete and overwrite both refused by the immutability policy. WORM proven.

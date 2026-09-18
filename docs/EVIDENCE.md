@@ -10,8 +10,14 @@ credentials, and stay visible so the evidence can be checked against Azure.
 
 ## Deployment
 
-- Deployed from an empty free-account subscription with `scripts/deploy.sh`: *pending*
-- `terraform plan` per stage converges to `No changes` after apply: *pending*
+- **2026-09-18:** deployed into an empty pay-as-you-go subscription (new tenant): state
+  bootstrap, then stages 01 → 02 → 03 → 04 → 06, each applied from a reviewed saved plan,
+  then code, catalog seed and first runs (`scripts/deploy.sh --code-only`). The one
+  failure (budget 401 on a minutes-old subscription) succeeded on re-plan
+  ([VALIDATION-LOG C10](VALIDATION-LOG.md)).
+- The first armed CI run (compliance-gate, plan-only identity) planned all five stages
+  successfully. The first drift run caught real drift, zip deploy rewriting app settings
+  ([C7](VALIDATION-LOG.md)); stages 03/04 converge after the fix.
 
 ## WORM
 
@@ -19,14 +25,26 @@ credentials, and stay visible so the evidence can be checked against Azure.
 identity that holds Storage Blob Data Contributor, both refused by the immutability
 policy.
 
-- Output: *pending* (`evidence/worm-proof-<date>.txt`)
+- [`evidence/worm-proof-2026-09-18.txt`](../evidence/worm-proof-2026-09-18.txt): operator
+  holds Storage Blob Data Contributor; DELETE and OVERWRITE of
+  `reports/sar/2026/09/sar-2026-09-18T1300Z.md` both refused with
+  `BlobImmutableDueToPolicy`; size and MD5 unchanged afterwards.
 
 ## Trace
 
 `scripts/trace.py`: newest POA&M line item → its `traceQuery` → the stored document,
 compared field by field; SAR headline numbers recomputed from the embedded queries.
 
-- Output: *pending* (`evidence/trace-<date>.md`)
+- [`evidence/trace-2026-09-18.md`](../evidence/trace-2026-09-18.md): POA&M item
+  `POAM-20260918-001` (state storage account missing diagnostics routing, a real
+  finding the pipeline made about its own bootstrap) matches its Cosmos document on
+  resource, status, first-detected date, run ID and owner. The SAR's
+  `assessmentsInRun`, `byStatus` and `bySource` were recomputed from the store and match.
+
+## Incidents
+
+- [INC-01](INCIDENTS.md): plan files pushed to a public branch; contained, all keys rotated,
+  gate check added.
 
 ## Gate
 
