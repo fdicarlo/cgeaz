@@ -51,17 +51,30 @@ compared field by field; SAR headline numbers recomputed from the embedded queri
 - **Offline proof on every push:** the `static` job of `compliance-gate` runs conftest on
   `policy/fixtures/bad-plan.json` and fails the build unless ≥ 9 named violations fire
   (current: 10). 21 unit tests in `policy/tests/`.
-- **Live proof:** a closed, unmerged PR that adds a non-compliant storage account; the
-  `plan` job fails naming the rule and resource: *pending*
+- **Live proof:** [PR #7](https://github.com/fdicarlo/cgeaz/pull/7) adds a "quick" public
+  storage account for sharing reports (public blob, shared keys, TLS 1.0). Closed unmerged.
+  Both layers blocked it independently ([run 35351750174](https://github.com/fdicarlo/cgeaz/actions/runs/35351750174)):
+  - Tier 0 `static`: checkov CKV_AZURE_44, CKV_AZURE_190, CKV2_AZURE_38, CKV2_AZURE_47
+  - OPA on the **live** stage 04 plan: `FAIL … azurerm_storage_account.public_share: storage
+    accounts must not allow public blob access` / `shared key access must be disabled` /
+    `min_tls_version must be TLS1_2 or higher`
+  - The first attempt showed the plan gate being skipped whenever Tier 0 failed
+    (`needs: static`). [PR #8](https://github.com/fdicarlo/cgeaz/pull/8) made the layers independent.
+- **Every governance change since deployment went through a gated PR:** #2, #5, #8, #9.
 
 ## Loop
 
 `scripts/prove-loop.sh setup → sabotage → scan → approve → verify`, with the de- and
 re-escalation as reviewed PRs.
 
-- De-escalation PR (Deny → Audit): *pending*
-- Loop log: *pending* (`evidence/loop-<date>.md`)
-- Re-escalation PR (Audit → Deny): *pending*
+- De-escalation: [PR #9](https://github.com/fdicarlo/cgeaz/pull/9), `public_blob_policy_effect` Deny → Audit (one line, gated, merged, applied)
+- Loop log: [`evidence/loop-2026-09-18.md`](../evidence/loop-2026-09-18.md)
+  - 13:49 sabotage (operator makes `stgrcloop0ffaa568` public), 13:54 NonCompliant
+  - 13:57 **operator approves** remediation task `fix-public-blob-1789739838`: Succeeded (1 ok, 0 failed)
+  - Activity Log: the only write after the sabotage is 13:57:39Z by `924ca48e…` = `id-grc-remediation-dev`
+  - 14:04 rescan Compliant; POA&M 5 → 3 open items, both public-blob items gone
+- Re-escalation: [PR #10](https://github.com/fdicarlo/cgeaz/pull/10), Audit → Deny. The same sabotage retried is refused with `RequestDisallowedByPolicy` (`cge-deny-public-blob`).
+- Honest note: the first `verify` printed its RESULT line before the Activity Log held the remediation write (script bug, fixed in #10). The log keeps the wrong line, annotated, next to the corrected entries.
 
 ## Run history
 
