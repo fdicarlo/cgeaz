@@ -1,0 +1,11 @@
+# Secret scanning config: gitleaks defaults + one narrow allowlist.
+# `findingKey` is the collector's SHA-256-derived finding identity (32 hex chars), not a
+# credential; the default generic-api-key rule matches it because the field name
+# contains "key". Allowlisted by the full line shape only.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "collector finding identity hashes in evidence documents"
+regexTarget = "line"
+regexes = ['''"findingKey": "[0-9a-f]{32}"''']
