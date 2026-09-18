@@ -1,12 +1,21 @@
 name: drift-detection
 
-# Detector 1 of 2: does reality still match the code? (Detector 2 is the KQL tripwire —
-# who's been touching reality? — scheduled in Log Analytics.)
-# terraform plan -detailed-exitcode: 0 = clean, 2 = drift. Drift opens an issue with the diff.
+# Both drift questions, every night, after the 06:00 UTC collection sweep and reports:
+#
+#   code-drift     Detector 1 — does reality still match the code?
+#                  terraform plan -detailed-exitcode per stage: 0 clean, 2 drift.
+#   out-of-band    Detector 2 — who is touching reality? The same KQL as the Azure
+#                  Monitor alert (stages/01-foundation/monitoring.tf), run over the
+#                  last 25h of AzureActivity. Untrusted callers -> an issue.
+#   heartbeat      Is the pipeline itself alive? Collector/report runs in the last
+#                  25h from App Insights. A silent timer is a control failure too.
+#
+# Findings open GitHub issues (deduplicated: one open issue per title, new
+# occurrences comment on it). Identity: the plan-only CI role from scripts/arm-ci.sh.
 
 on:
   schedule:
-    - cron: "0 8 * * *"   # nightly, after the 05:00 UTC collection sweep
+    - cron: "0 8 * * *"
   workflow_dispatch: {}
 
 permissions:
@@ -15,58 +24,143 @@ permissions:
   issues: write
 
 env:
+  TF_IN_AUTOMATION: "true"
   ARM_USE_OIDC: "true"
+  ARM_USE_AZUREAD: "true"
   ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
   ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+  TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_state_storage_account: ${{ vars.STATE_STORAGE_ACCOUNT }}
   TF_VAR_owner_email: ${{ vars.OWNER_EMAIL }}
+  TF_VAR_deployer_object_id: ${{ vars.DEPLOYER_OBJECT_ID }}
+  TF_VAR_trusted_automation_callers: ${{ vars.TRUSTED_CALLERS || '[]' }}
 
 jobs:
-  drift:
-    # Runs only in forks that have been armed (Lab 6: labs/06-loop/arm-your-fork.sh).
-    # The upstream GRCEngClub/cgeaz repo is deliberately NOT armed: on a public repo,
-    # a pull_request OIDC subject matches PRs from any fork — arming upstream would
-    # hand fork PRs a path toward the course subscription. Your fork, your identity,
-    # your sandbox subscription only.
+  code-drift:
     if: ${{ vars.AZURE_CLIENT_ID != '' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        stage: [01-foundation, 03-evidence-store, 04-reporting, 06-enforcement]
+        stage: [01-foundation, 02-activation, 03-evidence-store, 04-reporting, 06-enforcement]
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
+      - name: backend config from repository variables
+        run: |
+          cat > labs/03-foundation/backend.hcl <<EOF
+          resource_group_name  = "rg-grc-tfstate"
+          storage_account_name = "${{ vars.STATE_STORAGE_ACCOUNT }}"
+          container_name       = "tfstate"
+          EOF
+
+      - name: plan with detailed exit code
+        id: plan
+        working-directory: stages/${{ matrix.stage }}
+        run: |
+          terraform init -input=false -backend-config=../../labs/03-foundation/backend.hcl >/dev/null
+          set +e
+          terraform plan -input=false -lock=false -detailed-exitcode -no-color > plan-output.txt 2>&1
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          tail -n 40 plan-output.txt
+          {
+            echo "### ${{ matrix.stage }}: exit $code"
+            echo '```'
+            grep -E '^(Plan:|No changes|Error)' plan-output.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 0 = clean, 2 = drift (reported below as an issue). 1 = the detector itself
+          # broke — fail loudly rather than report "no drift".
+          [ "$code" != "1" ]
+
+      - name: open or update drift issue
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const out = fs.readFileSync('stages/${{ matrix.stage }}/plan-output.txt', 'utf8');
+            const title = 'Drift detected: stages/${{ matrix.stage }}';
+            const body = `Reality no longer matches code (run ${context.runId}, ${new Date().toISOString()}). ` +
+              'This is a change-management finding that generated itself.\n\n```\n' + out.slice(-60000) + '\n```';
+            const {data: open} = await github.rest.issues.listForRepo({...context.repo, state: 'open', labels: 'drift'});
+            const existing = open.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({...context.repo, issue_number: existing.number, body});
+            } else {
+              await github.rest.issues.create({...context.repo, title, body, labels: ['drift']});
+            }
+
+  out-of-band:
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
+    runs-on: ubuntu-latest
+    steps:
       - uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-      - name: plan with detailed exit code
-        id: plan
-        working-directory: stages/${{ matrix.stage }}
-        continue-on-error: true
+      - name: query the workspace
+        id: q
         run: |
-          terraform init -input=false -backend-config=../../labs/03-foundation/backend.hcl
-          terraform plan -input=false -detailed-exitcode -no-color -out=drift.plan \
-            2>&1 | tee plan-output.txt
-          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          WS=$(az monitor log-analytics workspace show -g rg-grc-sandbox-dev -n law-grc-sandbox --query customerId -o tsv)
+          RID=$(az identity show -g rg-grc-sandbox-dev -n id-grc-remediation-dev --query principalId -o tsv)
+          RCID=$(az identity show -g rg-grc-sandbox-dev -n id-grc-remediation-dev --query clientId -o tsv)
+          TRUSTED=$(echo '${{ vars.TRUSTED_CALLERS || '[]' }}' | jq -c --arg r "$RID" --arg c "$RCID" '. + [$r, $c]')
+          az monitor log-analytics query -w "$WS" --timespan P1DT1H -o json --analytics-query "
+            AzureActivity
+            | where CategoryValue == 'Administrative'
+            | where ActivityStatusValue in ('Success', 'Succeeded')
+            | where OperationNameValue endswith '/WRITE' or OperationNameValue endswith '/DELETE'
+            | where OperationNameValue !startswith 'MICROSOFT.RESOURCES/DEPLOYMENTS'
+            | where Caller !in (dynamic($TRUSTED))
+            | summarize changes = count(), operations = make_set(OperationNameValue, 20),
+                        firstSeen = min(TimeGenerated), lastSeen = max(TimeGenerated) by Caller, ResourceGroup
+            | order by changes desc" > oob.json
+          az monitor log-analytics query -w "$WS" --timespan P1DT1H -o json --analytics-query "
+            AppRequests
+            | summarize runs = count(), failures = countif(Success == false), last = max(TimeGenerated) by Name
+            | order by Name asc" > runs.json
+          echo "oob=$(jq length oob.json)" >> "$GITHUB_OUTPUT"
+          echo "collector_runs=$(jq '[.[] | select(.Name | startswith("collect")) | .runs | tonumber] | add // 0' runs.json)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Out-of-band changes (last 25h): $(jq length oob.json)"
+            jq -r '.[] | "- \(.Caller) · \(.ResourceGroup) · \(.changes) change(s)"' oob.json
+            echo; echo "### Pipeline run history (last 25h)"
+            echo "| Function | Runs | Failures | Last |"; echo "|---|---|---|---|"
+            jq -r '.[] | "| \(.Name) | \(.runs) | \(.failures) | \(.last) |"' runs.json
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: open drift issue
-        if: steps.plan.outputs.exitcode == '2'
+      - name: open or update findings
+        if: steps.q.outputs.oob != '0' || steps.q.outputs.collector_runs == '0'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const body = fs.readFileSync('stages/${{ matrix.stage }}/plan-output.txt', 'utf8');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `Drift detected: stages/${{ matrix.stage }} (${new Date().toISOString().slice(0,10)})`,
-              body: 'Reality no longer matches code. This is a change-management finding that generated itself.\n\n```\n' + body.slice(0, 60000) + '\n```',
-              labels: ['drift'],
-            });
+            const file = async (title, label, body) => {
+              const {data: open} = await github.rest.issues.listForRepo({...context.repo, state: 'open', labels: label});
+              const existing = open.find(i => i.title === title);
+              if (existing) await github.rest.issues.createComment({...context.repo, issue_number: existing.number, body});
+              else await github.rest.issues.create({...context.repo, title, body, labels: [label]});
+            };
+            if ('${{ steps.q.outputs.oob }}' !== '0') {
+              const rows = JSON.parse(fs.readFileSync('oob.json', 'utf8'));
+              const table = rows.map(r => `| ${r.Caller} | ${r.ResourceGroup} | ${r.changes} | ${r.operations} |`).join('\n');
+              await file('Out-of-band changes in the governed subscription', 'drift',
+                `Detector 2: control-plane writes by callers outside the trusted list (run ${context.runId}).\n\n` +
+                `| Caller | Resource group | Changes | Operations |\n|---|---|---|---|\n${table}\n\n` +
+                'Expected if you applied Terraform from a laptop: close with a link to the PR that authorized it.');
+            }
+            if ('${{ steps.q.outputs.collector_runs }}' === '0') {
+              await file('Pipeline heartbeat: no collector runs in 25h', 'pipeline-health',
+                `The collector timer produced no AppRequests rows in the last 25h (run ${context.runId}). ` +
+                'Evidence is going stale: check the Function App in rg-grc-evidence-dev.');
+            }

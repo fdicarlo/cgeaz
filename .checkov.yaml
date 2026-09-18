@@ -1,0 +1,37 @@
+# Tier 0 IaC scan. Run: checkov --config-file .checkov.yaml
+# Every skip is a decision with a reason, mirrored in docs/EXCEPTIONS.md (EXC-03).
+# Sandbox-scale economics drive most of these: they are the right call for a
+# free-account capstone and the wrong call for production, and the doc says so.
+directory:
+  - stages
+framework:
+  - terraform
+compact: true
+quiet: true
+skip-check:
+  # --- Networking isolation (private endpoints / public network off) ---
+  # Consumption Functions can't join a VNet; private endpoints need Premium/Flex plans
+  # and a VNet design. Access is identity-only instead (keys disabled, RBAC scoped).
+  - CKV2_AZURE_33   # storage private endpoint
+  - CKV_AZURE_59    # storage public network access
+  - CKV_AZURE_99    # Cosmos IP/VNet restriction
+  - CKV_AZURE_101   # Cosmos public network access
+  - CKV_AZURE_221   # Function App public network access
+  # --- Customer-managed keys ---
+  # Platform-managed encryption is on for all data at rest. CMK needs Key Vault + key
+  # lifecycle ops; no obligation in scope demands it for a sandbox evidence store.
+  - CKV2_AZURE_1    # storage CMK
+  - CKV_AZURE_100   # Cosmos CMK
+  # --- Availability / redundancy ---
+  # Consumption plans are single-region and not zone-redundant by design; LRS is
+  # sufficient for a sandbox (evidence is WORM + versioned + soft-deleted; Cosmos has PITR).
+  - CKV_AZURE_225   # App Service plan zone redundancy
+  - CKV_AZURE_212   # App Service plan min instances
+  - CKV_AZURE_206   # storage replication (GRS)
+  # --- Checks that target legacy/deprecated attributes (false positives on azurerm 4.x) ---
+  - CKV_AZURE_140   # looks for local_authentication_disabled; we set local_authentication_enabled = false (gate rule cosmos.rego enforces it)
+  - CKV_AZURE_33    # queue_properties logging; no queues are used, block deprecated in 4.x
+  - CKV2_AZURE_21   # container-level blob logging; logging is on at blobServices (ds-evidence-blob-to-law)
+  # --- Documented exception EXC-01 ---
+  - CKV2_AZURE_40   # shared key on Functions runtime storage only (EXC-01, time-boxed policy exemption)
+  - CKV2_AZURE_41   # wants SAS expiration_action=Block; the Functions runtime's run-from-package SAS is long-lived, so runtime storage uses Log (EXC-01)
