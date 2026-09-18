@@ -252,3 +252,14 @@ federation.
 First apply of `azurerm_consumption_budget_subscription` on a brand-new pay-as-you-go
 subscription: `401 Unauthorized` while checking for an existing budget, although the
 operator is Owner. Re-plan and apply ten minutes later succeeded unchanged.
+
+### C11 — discovery outputs make `-detailed-exitcode` report drift forever
+Stage 02's outputs (live Defender tiers, Resource Graph inventory) change whenever the
+environment does, and `plan -detailed-exitcode` exits 2 on output-only changes. The first
+nightly run filed "Drift detected: stages/02-activation" with zero resource changes.
+drift.yml now counts only resource changes (`terraform show -json` → `resource_changes`
+not `no-op`/`read`); output-only diffs are logged, not filed.
+
+### C12 — Defender's own identities trip the out-of-band detector
+Enabling Defender for Storage makes three Microsoft identities write to the subscription
+within minutes (EXC-06). Trusted by name after review.
