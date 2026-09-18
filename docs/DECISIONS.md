@@ -28,7 +28,7 @@ overwrite-in-place, a SAR from last Monday references documents that have since 
 under it. With append-only, `WHERE c.runId = @run` returns exactly what the report was
 built from, forever.
 **Cost:** storage grows with runs × findings. At sandbox scale (a few hundred findings,
-4 runs/day) that's a few MB a month on serverless Cosmos, which is pennies. Production
+24 runs/day) that's still only tens of MB a month on serverless Cosmos, which is pennies. Production
 would add a TTL longer than the evidence retention obligation.
 
 ## D3. POA&M due dates anchor to first detection
@@ -108,10 +108,18 @@ Functions in `centralus`. These are the course-validated defaults.
 synthetic sandbox posture with no residency obligation. A real EU workload would pin
 every stage to an EU region and add an allowed-locations Deny to the baseline.
 
-## D11. Collector every 6 hours, reports after the 06:00 sweep
+## D11. Sandbox cadence: collector hourly, reports every 6h, SAR daily
 
-**Decision:** collector `0 0 */6 * * *`, POA&M 06:15, framework 06:30, SAR Monday 07:00,
-drift 08:00 (all UTC).
-**Why:** Defender re-evaluates on a similar cadence, so more frequent runs add nothing.
-Four runs a day builds a dense run history. Each report runs after a fresh sweep, and
-drift runs after the reports, so a drift issue can cite the same day's evidence.
+**Decision:** collector `0 0 * * * *` (hourly); POA&M `0 15 */6 * * *` and framework
+report `0 30 */6 * * *` (just after a sweep); SAR daily 06:45; drift 08:00 (all UTC).
+Changed on 2026-09-18 from every 6h / daily / weekly, the day of deployment.
+**Why denser than production:** the capstone is graded partly on run history, with a
+limited window. Hourly timers give a dense, *unattended* history in days instead of
+weeks. Every run is a live timer, not a burst of manual triggers, and each is recorded
+in the `runs` ledger and in AppRequests. Collections where Defender hasn't changed
+simply repeat the same states, which append-only storage handles (D2).
+**Production cadence** would be what the original schedule encoded: collection every
+6h, which matches how often Defender re-evaluates, a daily POA&M and a weekly SAR.
+One PR reverts it.
+**Ordering:** each report runs just after a fresh sweep, and drift (08:00) runs after the
+morning reports, so a drift issue can cite the same day's evidence.

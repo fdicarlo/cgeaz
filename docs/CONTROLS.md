@@ -50,9 +50,9 @@ deployed defaults; each one can be changed only through a reviewed variable.
 
 | Generator | Schedule | What it answers | CSF 2.0 | 800-53 r5 |
 |---|---|---|---|---|
-| POA&M (xlsx + json) | daily 06:15 UTC | What is open, who owns it, and when is it due (SLA from first detection) | ID.IM, GV.RM | CA-5 |
-| **Own:** Framework report (md + json) | daily 06:30 UTC | Per-control state for CSF 2.0 **and** 800-53 from one collection | GV.OV | CA-7 |
-| SAR (md + json) | weekly Mon 07:00 UTC | What was tested, what passed, what failed; every number with its query | ID.RA, GV.OV | CA-2 |
+| POA&M (xlsx + json) | every 6h (:15) | What is open, who owns it, and when is it due (SLA from first detection) | ID.IM, GV.RM | CA-5 |
+| **Own:** Framework report (md + json) | every 6h (:30) | Per-control state for CSF 2.0 **and** 800-53 from one collection | GV.OV | CA-7 |
+| SAR (md + json) | daily 06:45 UTC | What was tested, what passed, what failed; every number with its query | ID.RA, GV.OV | CA-2 |
 
 Every artifact embeds a `provenance` block: the run it is pinned to and the exact
 Cosmos SQL that reproduces its numbers ([trace proof](EVIDENCE.md#trace)).

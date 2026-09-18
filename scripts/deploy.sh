@@ -132,7 +132,7 @@ call "$REPORTER" sar_now sar
 cat <<EOF
 
 Pipeline deployed. Timers now accumulate run history on their own:
-  collector every 6h · POA&M daily 06:15 · framework daily 06:30 · SAR Mondays 07:00 (UTC)
+  collector hourly · POA&M + framework every 6h · SAR daily 06:45 (UTC)
 
 Next: scripts/arm-ci.sh <github-user>  (hardened OIDC identity for the gate + drift)
 Proofs: scripts/prove-worm.sh · scripts/trace.py · docs/EVIDENCE.md

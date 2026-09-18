@@ -32,7 +32,7 @@ SA=$(terraform -chdir=stages/03-evidence-store output -raw evidence_storage_acco
   BLOB=$(az storage blob list --account-name "$SA" --container-name reports --auth-mode login \
           --query "sort_by([?!contains(name, 'worm-probe')], &properties.creationTime)[-1].name" -o tsv)
   if [ -z "$BLOB" ]; then
-    echo "No report in the container yet — run scripts/deploy.sh (or wait for the 06:15 UTC timer)."
+    echo "No report in the container yet — run scripts/deploy.sh (or wait for the next POA&M timer, every 6h at :15)."
     exit 1
   fi
   echo "## 3. Target: reports/$BLOB"

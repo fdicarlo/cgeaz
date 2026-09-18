@@ -1,6 +1,6 @@
 """CGE-AZ pipeline — Stage 3 collector.
 
-Timer (every 6h) -> managed identity -> two evidence sources -> Cosmos.
+Timer (hourly) -> managed identity -> two evidence sources -> Cosmos.
 
   1. Defender for Cloud assessments  (Security Reader)
   2. Azure Policy states for this repo's own cge-* controls  (GRC Policy State Reader)
@@ -213,9 +213,9 @@ def _collect(trigger: str) -> dict:
             "counts": {src: dict(c) for src, c in counts.items()}, "errors": errors}
 
 
-@app.timer_trigger(schedule="0 0 */6 * * *", arg_name="timer", run_on_startup=False)
+@app.timer_trigger(schedule="0 0 * * * *", arg_name="timer", run_on_startup=False)
 def collect_scheduled(timer: func.TimerRequest) -> None:
-    """Every 6 hours (00/06/12/18 UTC). Defender re-evaluates on a similar cadence."""
+    """Hourly, on the hour (UTC). Sandbox cadence: see docs/DECISIONS.md D11."""
     _collect("timer")
 
 

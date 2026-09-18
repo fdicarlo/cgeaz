@@ -13,7 +13,7 @@ mechanical half.
 | Terraform: governed foundation | `stages/01-foundation` |
 | Terraform: evidence store (Cosmos + immutable Blob) | `stages/03-evidence-store/main.tf` (`azurerm_cosmosdb_account.evidence`, `azurerm_storage_container_immutability_policy.reports_worm`) |
 | Terraform: enforcement in dry-run | `stages/06-enforcement` (`remediation_mode = "dry-run"` → `enforce = false`) |
-| ≥ 2 report generators, store-only, live timers | `functions/reports/function_app.py`: POA&M daily, Framework daily, SAR weekly; reporter identity has no live-API role (`stages/04-reporting/main.tf`) |
+| ≥ 2 report generators, store-only, live timers | `functions/reports/function_app.py`: POA&M and Framework every 6h, SAR daily; reporter identity has no live-API role (`stages/04-reporting/main.tf`) |
 | Real run history | `runs` ledger + App Insights `AppRequests` ([EVIDENCE.md](EVIDENCE.md#run-history)) |
 | CI gate on the repo's own Terraform | `.github/workflows/gate.yml` (`static` + `plan` jobs), `policy/` |
 | Scheduled drift detection | `.github/workflows/drift.yml` (nightly) + `alert-grc-out-of-band-change` |
@@ -53,7 +53,7 @@ mechanical half.
 
 | Criterion | Where |
 |---|---|
-| Run history accumulating | collector every 6h since deployment; [EVIDENCE#run-history](EVIDENCE.md#run-history) |
+| Run history accumulating | collector hourly since deployment; [EVIDENCE#run-history](EVIDENCE.md#run-history) |
 | Gate demonstrably blocks | bad-plan proof on every push + closed test PR ([EVIDENCE#gate](EVIDENCE.md#gate)) |
 | Enforcement in dry-run with a human at the approval gate | `scripts/prove-loop.sh approve` ([EVIDENCE#loop](EVIDENCE.md#loop)) |
 | Drift both ways | code drift (plan exit 2) + out-of-band (KQL alert + nightly job) |

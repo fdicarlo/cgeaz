@@ -21,7 +21,7 @@ flowchart LR
         ACT["Defender plans → Standard<br/>NIST CSF 2.0 assignment"]
     end
     subgraph S3["03 Evidence store"]
-        COL["Collector Function<br/>every 6h"]
+        COL["Collector Function<br/>hourly"]
         COS[("Cosmos DB grc<br/>assessments · runs<br/>frameworks · mappings")]
         WORM[("Blob reports/<br/>WORM 90d")]
     end
@@ -131,11 +131,11 @@ run writes the same IDs again, so collection stays idempotent.
 
 1. **Defender** evaluates a storage account and marks the assessment "Storage accounts
    should prevent shared key access" Unhealthy.
-2. The **collector** (every 6h) reads it with Security Reader, looks up the resource
+2. The **collector** (hourly) reads it with Security Reader, looks up the resource
    group's `owner` tag, carries `firstSeenAt` forward from the previous run, and writes
    `assessments/<hash>` stamped with `runId` and `collectedAt`. It writes the `runs`
    ledger entry last.
-3. The **reporter** (06:15 UTC) pins to the newest ledger entry. It crosswalks the
+3. The **reporter** (every 6h, 15 min past a sweep) pins to the newest ledger entry. It crosswalks the
    finding through `mappings` (category `Data` → CSF PR.DS, 800-53 SC-28/SC-8) and
    writes `poam/YYYY/MM/poam-…json|xlsx` into the WORM container. The due date is
    `firstSeenAt` + the SLA, and the line item carries its own `traceQuery`.
