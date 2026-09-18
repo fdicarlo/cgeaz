@@ -195,3 +195,39 @@ runnable `TF_VAR_state_storage_account=stgrctfstateXXXXXXXX` placeholder lines i
 4 and 5 now derive the value from `backend.hcl` (copied verbatim, the placeholder
 produced a cryptic `no such host`). macOS/Homebrew Python needs a venv for the seed
 script (PEP 668 `externally-managed-environment`) — noted in Lab 4.
+
+---
+
+## Capstone build findings (fdicarlo/cgeaz, 2026-09)
+
+Found while turning the starter into the capstone. Each one is fixed in this repo; the
+fix is named so it can be checked.
+
+### C1 — the identity gate rule never fired
+`not rc.change.after.identity` is false when the plan says `"identity": []` (an empty
+array is a *defined* value in Rego), which is exactly how a missing identity block
+serializes. The starter's rule could not catch the mistake it exists for. Fixed with
+`count(object.get(..., "identity", [])) == 0`; `policy/tests/gate_test.rego` pins it.
+Same trap for `expires_on: null` in the exemption rule.
+
+### C2 — armed CI could not `terraform init`
+`labs/03-foundation/backend.hcl` is gitignored (correctly: it's per-operator), but the
+workflows pointed `-backend-config` at it. Both workflows now write it from repository
+variables. `02-activation` was also missing from the gate and drift matrices.
+
+### C3 — CI plans would re-point the deployer's role grants at the CI identity
+Stage 03 granted data-plane roles to `data.azurerm_client_config.current.object_id`;
+under CI that is the CI principal, so every nightly drift run would report a diff.
+Now `var.deployer_object_id` (repository variable `DEPLOYER_OBJECT_ID`).
+
+### C4 — overwrite-in-place evidence breaks historical reproducibility
+Deterministic per-finding IDs meant each sweep overwrote the documents last week's
+report was built from. Assessments are now append-only per run (docs/DECISIONS.md D2).
+
+### C5 — POA&M due dates slid forward every day
+`today + SLA` never goes overdue. Now `firstSeenAt + SLA`, carried across runs (D3).
+
+### C6 — checkov cannot parse `if = {` inside jsonencode
+checkov's HCL parser treats `if` as a keyword and reports a parsing error for the whole
+file (so its checks silently don't run on it). Quoting the key (`"if" = {`) is valid HCL,
+survives `terraform fmt`, and produces identical JSON.
