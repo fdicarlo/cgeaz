@@ -37,7 +37,7 @@ variable "tag_policy_effect" {
 variable "public_blob_policy_effect" {
   description = "Effect for the deny-public-blob-access policy. This one has earned Deny."
   type        = string
-  default     = "Audit"
+  default     = "Deny"
   validation {
     condition     = contains(["Audit", "Deny", "Disabled"], var.public_blob_policy_effect)
     error_message = "public_blob_policy_effect must be Audit, Deny, or Disabled."

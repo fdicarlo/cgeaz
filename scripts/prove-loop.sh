@@ -85,14 +85,17 @@ case "$STEP" in
       [ "$st" = "Succeeded" ] || [ "$st" = "Failed" ] && break
       sleep 30
     done
-    note "   task result: $(az policy remediation show -n "$task" -g "$RG" --query "{state:provisioningState, deployments:deploymentStatus}" -o json | tr -d '\n ')"
+    q='{state:provisioningState,deployments:deploymentStatus}'
+    result=$(az policy remediation show -n "$task" -g "$RG" --query "$q" -o json | tr -d '\n ')
+    note "   task result: $result"
     ;;
 
   verify)
     public=$(az storage account show -n "$TARGET" -g "$RG" --query allowBlobPublicAccess -o tsv)
     note "## $(date -u +%H:%MZ) verify: \`$TARGET\` allowBlobPublicAccess=$public"
     caller=$(az monitor activity-log list --resource-id "$(az storage account show -n "$TARGET" -g "$RG" --query id -o tsv)" \
-      --offset 6h --query "[?operationName.value=='Microsoft.Storage/storageAccounts/write' && status.value=='Succeeded'] | [0].caller" -o tsv)
+      --offset 6h --query "sort_by([?operationName.value=='Microsoft.Storage/storageAccounts/write' && status.value=='Succeeded'], &eventTimestamp)[-1].caller" -o tsv)
+    # Activity Log ingestion lags a few minutes: re-run verify if the caller isn't there yet.
     note "   last successful write by: $caller (remediation identity principal: $REMEDIATION_PID)"
     APP=$(terraform -chdir=stages/03-evidence-store output -raw collector_function_app)
     RAPP=$(terraform -chdir=stages/04-reporting output -raw reporting_function_app)
@@ -100,7 +103,11 @@ case "$STEP" in
     note "   collector: $(curl -sS "https://$APP.azurewebsites.net/api/collect?code=$k")"
     k=$(az functionapp function keys list -n "$RAPP" -g "$EVIDENCE_RG" --function-name poam_now --query default -o tsv)
     note "   POA&M:     $(curl -sS "https://$RAPP.azurewebsites.net/api/poam?code=$k")"
-    [ "$public" = "false" ] && note "   RESULT: detected -> approved -> fixed by the remediation identity -> re-collected -> documented."
+    if [ "$public" = "false" ] && [ "$caller" = "$REMEDIATION_PID" ]; then
+      note "   RESULT: detected -> approved -> fixed by the remediation identity -> re-collected -> documented."
+    else
+      note "   NOT YET PROVEN: property=$public, last writer=$caller (Activity Log may lag; re-run verify in a few minutes)"
+    fi
     echo "Now re-escalate: revert the Audit PR (Deny again), merge, scripts/deploy.sh --stages \"01\"."
     ;;
 
