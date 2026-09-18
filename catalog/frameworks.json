@@ -1,0 +1,57 @@
+{
+  "_comment": "Framework catalogs as data we own. Seeded into Cosmos `frameworks` by scripts/seed_catalog.py. Adding a framework is a data change, never a re-collection.",
+  "frameworks": [
+    {
+      "frameworkId": "nist-csf-2.0",
+      "name": "NIST Cybersecurity Framework 2.0",
+      "controls": {
+        "GV.OC": "Organizational Context",
+        "GV.RM": "Risk Management Strategy",
+        "GV.RR": "Roles, Responsibilities, and Authorities",
+        "GV.PO": "Policy",
+        "GV.OV": "Oversight",
+        "GV.SC": "Cybersecurity Supply Chain Risk Management",
+        "ID.AM": "Asset Management",
+        "ID.RA": "Risk Assessment",
+        "ID.IM": "Improvement",
+        "PR.AA": "Identity Management, Authentication, and Access Control",
+        "PR.AT": "Awareness and Training",
+        "PR.DS": "Data Security",
+        "PR.PS": "Platform Security",
+        "PR.IR": "Technology Infrastructure Resilience",
+        "DE.CM": "Continuous Monitoring",
+        "DE.AE": "Adverse Event Analysis",
+        "RS.MA": "Incident Management",
+        "RS.AN": "Incident Analysis",
+        "RS.CO": "Incident Response Reporting and Communication",
+        "RS.MI": "Incident Mitigation",
+        "RC.RP": "Incident Recovery Plan Execution",
+        "RC.CO": "Incident Recovery Communication"
+      }
+    },
+    {
+      "frameworkId": "nist-800-53-r5",
+      "name": "NIST SP 800-53 Rev. 5 (subset exercised by this pipeline)",
+      "controls": {
+        "AC-2": "Account Management",
+        "AC-3": "Access Enforcement",
+        "AC-6": "Least Privilege",
+        "AU-2": "Event Logging",
+        "AU-6": "Audit Record Review, Analysis, and Reporting",
+        "AU-12": "Audit Record Generation",
+        "CM-2": "Baseline Configuration",
+        "CM-6": "Configuration Settings",
+        "CM-8": "System Component Inventory",
+        "IA-2": "Identification and Authentication (Organizational Users)",
+        "IA-5": "Authenticator Management",
+        "RA-5": "Vulnerability Monitoring and Scanning",
+        "SC-7": "Boundary Protection",
+        "SC-8": "Transmission Confidentiality and Integrity",
+        "SC-12": "Cryptographic Key Establishment and Management",
+        "SC-28": "Protection of Information at Rest",
+        "SI-2": "Flaw Remediation",
+        "SI-4": "System Monitoring"
+      }
+    }
+  ]
+}

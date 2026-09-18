@@ -1,0 +1,73 @@
+{
+  "_comment": "The crosswalk: which collected finding satisfies which control in which framework. One assessment document, N frameworks. Match order: an exact rule (assessmentId / policy definition name) wins over a Defender category. Seeded into Cosmos `mappings` by scripts/seed_catalog.py.",
+  "rules": [
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-require-env-tag-rg"},
+      "title": "Resource groups must carry an env tag",
+      "severity": "Low",
+      "controls": {"nist-csf-2.0": ["ID.AM"], "nist-800-53-r5": ["CM-8"]}
+    },
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-deny-public-blob"},
+      "title": "Storage accounts must not allow public blob access",
+      "severity": "High",
+      "controls": {"nist-csf-2.0": ["PR.DS"], "nist-800-53-r5": ["AC-3", "SC-7"]}
+    },
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-dine-storage-diagnostics"},
+      "title": "Storage accounts must route diagnostics to the GRC workspace",
+      "severity": "Low",
+      "controls": {"nist-csf-2.0": ["DE.CM", "PR.PS"], "nist-800-53-r5": ["AU-2", "AU-12"]}
+    },
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-audit-cosmos-local-auth"},
+      "title": "Cosmos DB accounts must disable local (key-based) authentication",
+      "severity": "Medium",
+      "controls": {"nist-csf-2.0": ["PR.AA"], "nist-800-53-r5": ["IA-2", "AC-3"]}
+    },
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-audit-storage-shared-key"},
+      "title": "Storage accounts should disable shared-key authorization",
+      "severity": "Medium",
+      "controls": {"nist-csf-2.0": ["PR.AA"], "nist-800-53-r5": ["IA-5", "AC-3"]}
+    },
+    {
+      "match": {"source": "azure-policy", "assessmentId": "cge-fix-public-blob"},
+      "title": "Remediate: disable public blob access on storage accounts",
+      "severity": "High",
+      "controls": {"nist-csf-2.0": ["PR.DS", "RS.MI"], "nist-800-53-r5": ["AC-3", "SI-2"]}
+    },
+    {
+      "match": {"source": "defender", "category": "Data"},
+      "controls": {"nist-csf-2.0": ["PR.DS"], "nist-800-53-r5": ["SC-28", "SC-8"]}
+    },
+    {
+      "match": {"source": "defender", "category": "IdentityAndAccess"},
+      "controls": {"nist-csf-2.0": ["PR.AA"], "nist-800-53-r5": ["AC-2", "AC-6", "IA-2"]}
+    },
+    {
+      "match": {"source": "defender", "category": "Networking"},
+      "controls": {"nist-csf-2.0": ["PR.IR"], "nist-800-53-r5": ["SC-7"]}
+    },
+    {
+      "match": {"source": "defender", "category": "Compute"},
+      "controls": {"nist-csf-2.0": ["PR.PS", "ID.RA"], "nist-800-53-r5": ["CM-6", "SI-2", "RA-5"]}
+    },
+    {
+      "match": {"source": "defender", "category": "Container"},
+      "controls": {"nist-csf-2.0": ["PR.PS"], "nist-800-53-r5": ["CM-6", "SI-2"]}
+    },
+    {
+      "match": {"source": "defender", "category": "AppServices"},
+      "controls": {"nist-csf-2.0": ["PR.PS", "PR.DS"], "nist-800-53-r5": ["CM-6", "SC-8"]}
+    },
+    {
+      "match": {"source": "defender", "category": "IoT"},
+      "controls": {"nist-csf-2.0": ["PR.PS"], "nist-800-53-r5": ["CM-6"]}
+    },
+    {
+      "match": {"source": "defender", "category": "API"},
+      "controls": {"nist-csf-2.0": ["PR.PS", "PR.AA"], "nist-800-53-r5": ["CM-6", "AC-3"]}
+    }
+  ]
+}

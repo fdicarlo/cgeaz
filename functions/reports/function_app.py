@@ -1,20 +1,25 @@
 """CGE-AZ pipeline — Stage 4 report generators.
 
 Reports read from Cosmos ONLY — never from live services. Every number in every
-artifact resolves to a stored, timestamped document. A report that reads live data
-is a report whose numbers can't be reproduced tomorrow; a report that reads the
-store is a fact with a receipt.
+artifact resolves to a stored, timestamped document, and each artifact embeds the
+queries that reproduce it (reportlib.provenance). A report that reads live data is a
+report whose numbers can't be reproduced tomorrow; a report that reads the store is a
+fact with a receipt. The reporter's identity enforces this: Cosmos Data Reader and
+blob write on `reports`, nothing that can reach a platform API.
 
-Generators here: POA&M (xlsx + json, daily) and SAR (markdown, weekly), both with
-HTTP triggers for labs and demos.
+Generators (timers run AFTER the 06:00 UTC collection sweep):
+  POA&M      xlsx + json   daily   06:15 UTC
+  Framework  md + json     daily   06:30 UTC   (NIST CSF 2.0 + 800-53 via the crosswalk)
+  SAR        md + json     weekly  Mon 07:00 UTC
+Each also has an HTTP trigger for labs and demos.
 """
 
 import datetime
+import hashlib
 import io
 import json
 import logging
 import os
-from collections import Counter
 
 import azure.functions as func
 from azure.cosmos import CosmosClient
@@ -22,130 +27,104 @@ from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from openpyxl import Workbook
 
+import reportlib
+
 app = func.FunctionApp()
 
-# Severity-based SLAs: a POA&M is a plan, not a list.
-SLA_DAYS = {"High": 30, "Medium": 90, "Low": 180}
 
-
-def _clients():
+def _store():
     credential = DefaultAzureCredential()
-    cosmos = (
-        CosmosClient(os.environ["COSMOS_ENDPOINT"], credential)
-        .get_database_client(os.environ["COSMOS_DATABASE"])
-        .get_container_client("assessments")
-    )
+    db = CosmosClient(os.environ["COSMOS_ENDPOINT"], credential).get_database_client(
+        os.environ["COSMOS_DATABASE"])
     blobs = BlobServiceClient(
         account_url=os.environ["REPORTS_ACCOUNT_URL"], credential=credential
     ).get_container_client(os.environ["REPORTS_CONTAINER"])
-    return cosmos, blobs
+    return db, blobs
 
 
-def _latest_run(cosmos):
-    """Pin the report to a specific collection sweep — a statement about a known moment."""
-    rows = list(
-        cosmos.query_items(
-            "SELECT TOP 1 c.runId, c.collectedAt FROM c ORDER BY c.collectedAt DESC",
-            enable_cross_partition_query=True,
-        )
+def _query(container, sql, params=None):
+    return list(container.query_items(sql, parameters=params or [], enable_cross_partition_query=True))
+
+
+def _inputs(db):
+    """Pin to the newest completed collection run in the ledger, then read its findings."""
+    runs = _query(db.get_container_client("runs"), reportlib.Q_LATEST_RUN)
+    run = runs[0] if runs else None
+    findings = (
+        _query(db.get_container_client("assessments"), reportlib.Q_RUN_FINDINGS,
+               [{"name": "@run", "value": run["runId"]}])
+        if run else []
     )
-    return (rows[0]["runId"], rows[0]["collectedAt"]) if rows else (None, None)
+    mappings = _query(db.get_container_client("mappings"), reportlib.Q_MAPPINGS)
+    return run, findings, mappings
 
 
-def _unhealthy(cosmos, run_id):
-    return list(
-        cosmos.query_items(
-            "SELECT * FROM c WHERE c.runId = @run AND c.status = 'Unhealthy'",
-            parameters=[{"name": "@run", "value": run_id}],
-            enable_cross_partition_query=True,
-        )
-    )
-
-
-def _dated_path(prefix: str, ext: str) -> str:
-    now = datetime.datetime.now(datetime.timezone.utc)
-    return f"{prefix}/{now:%Y/%m}/{prefix}-{now:%Y-%m-%d}.{ext}"
+def _put(blobs, path: str, data: bytes) -> dict:
+    # overwrite=False: WORM would refuse anyway; this makes intent explicit in code.
+    blobs.upload_blob(path, data, overwrite=False)
+    return {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
 
 
 def generate_poam() -> dict:
-    cosmos, blobs = _clients()
-    run_id, collected_at = _latest_run(cosmos)
-    findings = _unhealthy(cosmos, run_id) if run_id else []
-    today = datetime.date.today()
+    db, blobs = _store()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    run, findings, mappings = _inputs(db)
+    report = reportlib.poam(run, findings, mappings, now)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "POA&M"
-    ws.append(
-        ["POA&M ID", "Weakness", "Affected Resource", "Severity",
-         "Detected (run)", "Scheduled Completion", "Owner", "Status"]
-    )
-    rows = []
-    for i, f in enumerate(sorted(findings, key=lambda x: x.get("severity") or ""), 1):
-        severity = f.get("severity") or "Medium"
-        due = today + datetime.timedelta(days=SLA_DAYS.get(severity, 90))
-        row = {
-            "poamId": f"POAM-{today:%Y%m%d}-{i:03d}",
-            "weakness": f.get("displayName"),
-            "resourceId": f.get("resourceId"),
-            "severity": severity,
-            "detectedRun": run_id,
-            "scheduledCompletion": due.isoformat(),
-            "owner": "resource-group owner tag",  # resolved during Domain 5's lab extension
-            "status": "Open",
-        }
-        rows.append(row)
-        ws.append(list(row.values()))
-
+    cols = ["poamId", "weakness", "affectedResource", "severity", "controls", "firstDetected",
+            "scheduledCompletion", "overdue", "owner", "status", "evidenceDocId", "traceQuery"]
+    ws.append(cols)
+    for item in report["items"]:
+        ws.append([json.dumps(item[c]) if isinstance(item[c], dict) else item[c] for c in cols])
+    meta = wb.create_sheet("Provenance")
+    for k, v in report["provenance"].items():
+        meta.append([k, json.dumps(v) if isinstance(v, dict) else v])
     xlsx = io.BytesIO()
     wb.save(xlsx)
-    xlsx_path = _dated_path("poam", "xlsx")
-    json_path = _dated_path("poam", "json")
-    blobs.upload_blob(xlsx_path, xlsx.getvalue(), overwrite=False)
-    blobs.upload_blob(
-        json_path,
-        json.dumps({"runId": run_id, "collectedAt": collected_at, "items": rows}, indent=2),
-        overwrite=False,
-    )
-    logging.info("POA&M: %d items -> %s", len(rows), xlsx_path)
-    return {"items": len(rows), "runId": run_id, "xlsx": xlsx_path, "json": json_path}
+
+    xlsx_art = _put(blobs, reportlib.dated_path("poam", "xlsx", now), xlsx.getvalue())
+    report["artifacts"] = {"xlsx": xlsx_art}
+    json_art = _put(blobs, reportlib.dated_path("poam", "json", now), json.dumps(report, indent=2).encode())
+    logging.info("POA&M: %d items (run %s) -> %s", report["summary"]["openItems"], report["provenance"]["runId"], xlsx_art["path"])
+    return {"items": report["summary"]["openItems"], "runId": report["provenance"]["runId"],
+            "xlsx": xlsx_art, "json": json_art}
 
 
 def generate_sar() -> dict:
-    cosmos, blobs = _clients()
-    run_id, collected_at = _latest_run(cosmos)
-    findings = _unhealthy(cosmos, run_id) if run_id else []
-    by_severity = Counter(f.get("severity") or "Unknown" for f in findings)
-
-    lines = [
-        "# Security Assessment Report (SAR)",
-        "",
-        f"- **Collection run:** `{run_id}`",
-        f"- **Collected at:** {collected_at}",
-        f"- **Open findings:** {len(findings)}",
-        f"- **By severity:** " + (", ".join(f"{k}: {v}" for k, v in sorted(by_severity.items())) or "none"),
-        "",
-        "## Findings",
-        "",
-    ]
-    for f in sorted(findings, key=lambda x: x.get("severity") or ""):
-        lines += [
-            f"### {f.get('displayName')}",
-            f"- Severity: {f.get('severity')}",
-            f"- Resource: `{f.get('resourceId')}`",
-            f"- Assessment ID: `{f.get('assessmentId')}` (trace: query the assessments container)",
-            "",
-        ]
-
-    path = _dated_path("sar", "md")
-    blobs.upload_blob(path, "\n".join(lines), overwrite=False)
-    logging.info("SAR: %d findings -> %s", len(findings), path)
-    return {"findings": len(findings), "runId": run_id, "path": path}
+    db, blobs = _store()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    run, findings, mappings = _inputs(db)
+    report = reportlib.sar(run, findings, mappings, now)
+    md = _put(blobs, reportlib.dated_path("sar", "md", now), reportlib.sar_md(report).encode())
+    js = _put(blobs, reportlib.dated_path("sar", "json", now), json.dumps(report, indent=2).encode())
+    logging.info("SAR: %d open findings (run %s) -> %s", len(report["findings"]), report["provenance"]["runId"], md["path"])
+    return {"findings": len(report["findings"]), "runId": report["provenance"]["runId"], "md": md, "json": js}
 
 
-@app.timer_trigger(schedule="0 0 6 * * *", arg_name="timer", run_on_startup=False)
+def generate_framework() -> dict:
+    db, blobs = _store()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    run, findings, mappings = _inputs(db)
+    frameworks = _query(db.get_container_client("frameworks"), reportlib.Q_FRAMEWORKS)
+    report = reportlib.framework_report(run, findings, mappings, frameworks, now)
+    md = _put(blobs, reportlib.dated_path("framework", "md", now), reportlib.framework_md(report).encode())
+    js = _put(blobs, reportlib.dated_path("framework", "json", now), json.dumps(report, indent=2).encode())
+    logging.info("Framework report: %d frameworks (run %s) -> %s", len(report["frameworks"]), report["provenance"]["runId"], md["path"])
+    return {"frameworks": {f["frameworkId"]: f["summary"] for f in report["frameworks"]},
+            "runId": report["provenance"]["runId"], "md": md, "json": js}
+
+
+@app.timer_trigger(schedule="0 15 6 * * *", arg_name="timer", run_on_startup=False)
 def poam_daily(timer: func.TimerRequest) -> None:
     generate_poam()
+
+
+@app.timer_trigger(schedule="0 30 6 * * *", arg_name="timer", run_on_startup=False)
+def framework_daily(timer: func.TimerRequest) -> None:
+    generate_framework()
 
 
 @app.timer_trigger(schedule="0 0 7 * * 1", arg_name="timer", run_on_startup=False)
@@ -156,6 +135,11 @@ def sar_weekly(timer: func.TimerRequest) -> None:
 @app.route(route="poam", auth_level=func.AuthLevel.FUNCTION)
 def poam_now(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(json.dumps(generate_poam()) + "\n", status_code=200)
+
+
+@app.route(route="framework", auth_level=func.AuthLevel.FUNCTION)
+def framework_now(req: func.HttpRequest) -> func.HttpResponse:
+    return func.HttpResponse(json.dumps(generate_framework()) + "\n", status_code=200)
 
 
 @app.route(route="sar", auth_level=func.AuthLevel.FUNCTION)
