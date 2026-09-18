@@ -5,8 +5,9 @@ Where to find proof of each claim the rubric grades. Raw outputs live in
 masked (operator UPNs, emails). Subscription and object IDs are identifiers, not
 credentials, and stay visible so the evidence can be checked against Azure.
 
-> Status: the pipeline is deployed in stages, and each section is filled in as its
-> proof is captured. A section that still says *pending* has not been demonstrated yet.
+> Status: the proofs below were captured while the pipeline ran in Azure (2026-09-18 onward).
+> The environment was decommissioned afterwards (see the last section). Sections still
+> marked *pending* were not demonstrated before teardown.
 
 ## Deployment
 
@@ -101,3 +102,22 @@ re-escalation as reviewed PRs.
 
 - Detector 1 (code drift): nightly `drift-detection` runs, *pending*
 - Detector 2 (out-of-band): alert `alert-grc-out-of-band-change` + nightly KQL, *pending*
+
+## Decommissioning
+
+**2026-09-18**, after the capstone passed. Every step was a reviewed `terraform plan -destroy`
+applied as saved, in reverse stage order:
+
+| Step | Result |
+|---|---|
+| 06-enforcement → 04-reporting → 03-evidence-store → 02-activation → 01-foundation | 3 + 7 + 23 + 3 + 21 resources destroyed |
+| WORM `reports` container | destroyed: the policy was unlocked ([EXC-04](EXCEPTIONS.md#exc-04)) for exactly this |
+| Defender for Storage / Key Vaults | back to **Free** (stage 02 destroy) |
+| Out-of-band leftovers | loop target account, App Insights smart-detection action group + alert rule, CI planner role, role assignments and app registration: deleted by hand |
+| State | delete lock removed, `rg-grc-tfstate` deleted last |
+| GitHub | Azure repository variables deleted; the `plan`/drift jobs now skip; branch protection requires `static` only |
+
+Verified afterwards: 0 resource groups, 0 resources, no `cge-*` policy definitions,
+assignments or exemptions, no custom roles, no budget, no subscription diagnostic
+settings, no CI app registration. The subscription itself was left in place (its
+cancellation is an account decision).
