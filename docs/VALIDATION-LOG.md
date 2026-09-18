@@ -269,3 +269,10 @@ Activity Log ingestion lags the remediation write by minutes, and an unsorted qu
 picked the operator's earlier sabotage write. The first `prove-loop.sh verify` printed
 "fixed by the remediation identity" anyway. `verify` now sorts writes by time and only
 claims the result when the last writer is the remediation identity.
+
+### C14 — zip deploy succeeded, trigger metadata stayed stale
+After changing timer schedules and renaming the timer functions, the deployment record
+showed Success (status 4) but `az functionapp function list` kept reporting the old names
+and schedules for 5+ minutes. A POST to `syncfunctiontriggers` fixed it immediately;
+`deploy.sh` now syncs after every code deploy. (Entra-only deploys work: basic-auth
+publishing has been off since INC-01.)
