@@ -263,3 +263,9 @@ not `no-op`/`read`); output-only diffs are logged, not filed.
 ### C12 — Defender's own identities trip the out-of-band detector
 Enabling Defender for Storage makes three Microsoft identities write to the subscription
 within minutes (EXC-06). Trusted by name after review.
+
+### C13 — the loop's "verify" must check the caller, not assume it
+Activity Log ingestion lags the remediation write by minutes, and an unsorted query
+picked the operator's earlier sabotage write. The first `prove-loop.sh verify` printed
+"fixed by the remediation identity" anyway. `verify` now sorts writes by time and only
+claims the result when the last writer is the remediation identity.
