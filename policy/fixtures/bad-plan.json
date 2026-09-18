@@ -1,0 +1,100 @@
+{
+  "_comment": "A plan that violates every gate rule. CI asserts the gate FAILS it (compliance-gate / static).",
+  "format_version": "1.2",
+  "resource_changes": [
+    {
+      "address": "azurerm_storage_account.sneaky",
+      "type": "azurerm_storage_account",
+      "name": "sneaky",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "allow_nested_items_to_be_public": true,
+          "shared_access_key_enabled": true,
+          "min_tls_version": "TLS1_0"
+        }
+      }
+    },
+    {
+      "address": "azurerm_role_assignment.too_broad",
+      "type": "azurerm_role_assignment",
+      "name": "too_broad",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "role_definition_name": "Contributor",
+          "scope": "/providers/Microsoft.Management/managementGroups/mg-grc"
+        }
+      }
+    },
+    {
+      "address": "azurerm_role_definition.wildcard",
+      "type": "azurerm_role_definition",
+      "name": "wildcard",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "permissions": [
+            {
+              "actions": [
+                "*"
+              ],
+              "not_actions": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "azurerm_management_group_policy_assignment.silent_noop",
+      "type": "azurerm_management_group_policy_assignment",
+      "name": "silent_noop",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "identity": []
+        }
+      }
+    },
+    {
+      "address": "azurerm_cosmosdb_account.keyed",
+      "type": "azurerm_cosmosdb_account",
+      "name": "keyed",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "local_authentication_enabled": true,
+          "backup": [
+            {
+              "type": "Periodic"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "address": "azurerm_resource_policy_exemption.forever",
+      "type": "azurerm_resource_policy_exemption",
+      "name": "forever",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "after": {
+          "expires_on": null,
+          "description": ""
+        }
+      }
+    }
+  ]
+}
