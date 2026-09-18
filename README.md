@@ -14,7 +14,7 @@ What this capstone adds or changes is listed [below](#what-this-capstone-adds-to
 01 Foundation ─► 02 Discovery → Activation ─► 03 Evidence store ─► 04 Reporting ─► 06 Enforcement ↺
 mg hierarchy       read Defender tiers +         Cosmos (append-only)   POA&M · Framework   Modify, dry-run,
 5-policy baseline  Resource Graph inventory,     + WORM Blob            · SAR, from the     human-approved,
-tripwire, budget   enable only the baseline      collector every 6h     store only          one remediation identity
+tripwire, budget   enable only the baseline      collector hourly       store only          one remediation identity
 ```
 
 Architecture, identity boundaries and the data model are in
@@ -65,10 +65,10 @@ to show its first rows. An empty first run is a clean run, not an error.
 
 | Schedule (UTC) | What | Output |
 |---|---|---|
-| every 6h (00/06/12/18) | collector: Defender assessments + `cge-*` policy states → Cosmos, one ledger entry per run | `assessments`, `runs` |
-| daily 06:15 | POA&M | `reports/poam/YYYY/MM/*.xlsx` + `.json` |
-| daily 06:30 | Framework report (CSF 2.0 + 800-53) | `reports/framework/YYYY/MM/*.md` + `.json` |
-| Mondays 07:00 | SAR | `reports/sar/YYYY/MM/*.md` + `.json` |
+| hourly | collector: Defender assessments + `cge-*` policy states → Cosmos, one ledger entry per run | `assessments`, `runs` |
+| every 6h (00:15/06:15/12:15/18:15) | POA&M | `reports/poam/YYYY/MM/*.xlsx` + `.json` |
+| every 6h (:30 past, same hours) | Framework report (CSF 2.0 + 800-53) | `reports/framework/YYYY/MM/*.md` + `.json` |
+| daily 06:45 | SAR | `reports/sar/YYYY/MM/*.md` + `.json` |
 | nightly 08:00 | drift detection: code drift, out-of-band changes, pipeline heartbeat | GitHub issues + job summary |
 | hourly | out-of-band change alert | email to `OWNER_EMAIL` |
 | every PR | compliance gate: Tier 0 + OPA on the real plan | required checks on `main` |

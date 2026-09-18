@@ -175,7 +175,7 @@ resource "azurerm_log_analytics_saved_search" "pipeline_run_history" {
   display_name               = "Collector and report generator run history (Functions)"
   query                      = <<-KQL
     AppRequests
-    | where Name in ("collect_scheduled", "poam_daily", "framework_daily", "sar_weekly",
+    | where Name in ("collect_scheduled", "poam_scheduled", "framework_scheduled", "sar_scheduled",
                      "collect_now", "poam_now", "framework_now", "sar_now")
     | summarize runs = count(), failures = countif(Success == false),
                 firstRun = min(TimeGenerated), lastRun = max(TimeGenerated) by Name

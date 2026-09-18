@@ -7,10 +7,10 @@ report whose numbers can't be reproduced tomorrow; a report that reads the store
 fact with a receipt. The reporter's identity enforces this: Cosmos Data Reader and
 blob write on `reports`, nothing that can reach a platform API.
 
-Generators (timers run AFTER the 06:00 UTC collection sweep):
-  POA&M      xlsx + json   daily   06:15 UTC
-  Framework  md + json     daily   06:30 UTC   (NIST CSF 2.0 + 800-53 via the crosswalk)
-  SAR        md + json     weekly  Mon 07:00 UTC
+Generators (timers run just after an hourly collection sweep; cadence: DECISIONS.md D11):
+  POA&M      xlsx + json   every 6h  00:15/06:15/12:15/18:15 UTC
+  Framework  md + json     every 6h  00:30/06:30/12:30/18:30 UTC  (CSF 2.0 + 800-53 via the crosswalk)
+  SAR        md + json     daily     06:45 UTC
 Each also has an HTTP trigger for labs and demos.
 """
 
@@ -117,18 +117,18 @@ def generate_framework() -> dict:
             "runId": report["provenance"]["runId"], "md": md, "json": js}
 
 
-@app.timer_trigger(schedule="0 15 6 * * *", arg_name="timer", run_on_startup=False)
-def poam_daily(timer: func.TimerRequest) -> None:
+@app.timer_trigger(schedule="0 15 */6 * * *", arg_name="timer", run_on_startup=False)
+def poam_scheduled(timer: func.TimerRequest) -> None:
     generate_poam()
 
 
-@app.timer_trigger(schedule="0 30 6 * * *", arg_name="timer", run_on_startup=False)
-def framework_daily(timer: func.TimerRequest) -> None:
+@app.timer_trigger(schedule="0 30 */6 * * *", arg_name="timer", run_on_startup=False)
+def framework_scheduled(timer: func.TimerRequest) -> None:
     generate_framework()
 
 
-@app.timer_trigger(schedule="0 0 7 * * 1", arg_name="timer", run_on_startup=False)
-def sar_weekly(timer: func.TimerRequest) -> None:
+@app.timer_trigger(schedule="0 45 6 * * *", arg_name="timer", run_on_startup=False)
+def sar_scheduled(timer: func.TimerRequest) -> None:
     generate_sar()
 
 
