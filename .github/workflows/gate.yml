@@ -34,11 +34,11 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # gitleaks scans history
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
@@ -54,7 +54,7 @@ jobs:
             echo "::endgroup::"
           done
 
-      - uses: terraform-linters/setup-tflint@v4
+      - uses: terraform-linters/setup-tflint@v6
       - name: tflint
         run: |
           tflint --init --config "$PWD/.tflint.hcl"
@@ -92,7 +92,7 @@ jobs:
         run: python3 -m unittest discover -s functions/reports/tests -v
 
       - name: secret scan (auto-fail trigger)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
@@ -125,9 +125,9 @@ jobs:
       TF_VAR_deployer_object_id: ${{ vars.DEPLOYER_OBJECT_ID }}
       TF_VAR_trusted_automation_callers: ${{ vars.TRUSTED_CALLERS || '[]' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
 
