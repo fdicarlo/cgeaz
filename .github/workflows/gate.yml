@@ -42,6 +42,12 @@ jobs:
         with:
           terraform_wrapper: false
 
+      - name: no plan or state files in the repo (INC-01)
+        # Saved plans and state embed secrets in binary form that gitleaks can't see.
+        run: |
+          found=$(git ls-files | grep -E '(\.plan|\.tfplan|tfplan|\.tfstate(\..*)?)$' || true)
+          [ -z "$found" ] || { echo "::error::plan/state files tracked: $found"; exit 1; }
+
       - name: terraform fmt
         run: terraform fmt -check -recursive stages/
 

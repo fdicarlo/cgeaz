@@ -127,7 +127,7 @@ jobs:
             | order by changes desc" > oob.json
           az monitor log-analytics query -w "$WS" --timespan P1DT1H -o json --analytics-query "
             AppRequests
-            | summarize runs = count(), failures = countif(Success == false), last = max(TimeGenerated) by Name
+            | summarize runs = count(), failures = countif(Success == false), lastRun = max(TimeGenerated) by Name
             | order by Name asc" > runs.json
           echo "oob=$(jq length oob.json)" >> "$GITHUB_OUTPUT"
           echo "collector_runs=$(jq '[.[] | select(.Name | startswith("collect")) | .runs | tonumber] | add // 0' runs.json)" >> "$GITHUB_OUTPUT"
@@ -135,8 +135,8 @@ jobs:
             echo "### Out-of-band changes (last 25h): $(jq length oob.json)"
             jq -r '.[] | "- \(.Caller) · \(.ResourceGroup) · \(.changes) change(s)"' oob.json
             echo; echo "### Pipeline run history (last 25h)"
-            echo "| Function | Runs | Failures | Last |"; echo "|---|---|---|---|"
-            jq -r '.[] | "| \(.Name) | \(.runs) | \(.failures) | \(.last) |"' runs.json
+            echo "| Function | Runs | Failures | Last run |"; echo "|---|---|---|---|"
+            jq -r '.[] | "| \(.Name) | \(.runs) | \(.failures) | \(.lastRun) |"' runs.json
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: open or update findings

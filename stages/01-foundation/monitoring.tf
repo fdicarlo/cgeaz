@@ -178,7 +178,7 @@ resource "azurerm_log_analytics_saved_search" "pipeline_run_history" {
     | where Name in ("collect_scheduled", "poam_daily", "framework_daily", "sar_weekly",
                      "collect_now", "poam_now", "framework_now", "sar_now")
     | summarize runs = count(), failures = countif(Success == false),
-                first = min(TimeGenerated), last = max(TimeGenerated) by Name
+                firstRun = min(TimeGenerated), lastRun = max(TimeGenerated) by Name
     | order by Name asc
   KQL
 }

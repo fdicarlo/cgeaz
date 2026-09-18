@@ -64,15 +64,22 @@ APP_OBJ=$(az ad app show --id "$APP_ID" --query id -o tsv)
 az ad sp show --id "$APP_ID" --output none 2>/dev/null || az ad sp create --id "$APP_ID" --output none
 SP_ID=$(az ad sp show --id "$APP_ID" --query id -o tsv)
 
-echo ">> Federated credentials: repo:${GH_OWNER}/${REPO} (pull_request, main)"
-for sub in "repo:${GH_OWNER}/${REPO}:pull_request|pr" "repo:${GH_OWNER}/${REPO}:ref:refs/heads/main|main"; do
-  SUBJECT="${sub%|*}"; NAME="${sub#*|}"
+# GitHub now presents immutable-ID subjects (repo:<owner>@<owner_id>/<repo>@<repo_id>:...),
+# which also stop a deleted-and-recreated repo with the same name from inheriting this
+# federation. Register that form, from the IDs GitHub reports for this repo.
+OWNER_ID=$(gh api "repos/${GH_OWNER}/${REPO}" --jq .owner.id)
+REPO_ID=$(gh api "repos/${GH_OWNER}/${REPO}" --jq .id)
+PREFIX="repo:${GH_OWNER}@${OWNER_ID}/${REPO}@${REPO_ID}"
+echo ">> Federated credentials: ${PREFIX} (pull_request, main)"
+for sub in "${PREFIX}:pull_request|pr" "${PREFIX}:ref:refs/heads/main|main"; do
+  SUBJECT="${sub%|*}"; NAME="${REPO}-${sub#*|}"
+  az ad app federated-credential delete --id "$APP_OBJ" --federated-credential-id "$NAME" --output none 2>/dev/null || true
   az ad app federated-credential create --id "$APP_OBJ" --parameters "{
-    \"name\": \"${REPO}-${NAME}\",
+    \"name\": \"${NAME}\",
     \"issuer\": \"https://token.actions.githubusercontent.com\",
     \"subject\": \"${SUBJECT}\",
     \"audiences\": [\"api://AzureADTokenExchange\"]
-  }" --output none 2>/dev/null || echo "   (${REPO}-${NAME} already exists)"
+  }" --output none
 done
 
 echo ">> Role assignments (retrying while the new role/SP propagate)"

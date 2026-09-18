@@ -23,8 +23,8 @@ Architecture, identity boundaries and the data model are in
 ## Deploy from an empty subscription
 
 **Prerequisites:** an Azure subscription where you are Owner and can create management
-groups (a fresh [free account](https://azure.microsoft.com/free) works and is what this
-was built on); Azure CLI ≥ 2.60, Terraform ≥ 1.9, Python ≥ 3.11, `zip`; for CI, a
+groups. This one runs in a fresh pay-as-you-go subscription in its own tenant; a
+[free account](https://azure.microsoft.com/free) works the same way; Azure CLI ≥ 2.60, Terraform ≥ 1.9, Python ≥ 3.11, `zip`; for CI, a
 GitHub fork of this repo and the `gh` CLI.
 
 ```bash
@@ -125,6 +125,7 @@ labs/        the course's six lab guides (kept for reference; bootstrap hardened
 - [DECISIONS.md](docs/DECISIONS.md): why the non-obvious choices were made
 - [EXCEPTIONS.md](docs/EXCEPTIONS.md): where the pipeline falls short of its own rules, and until when
 - [EVIDENCE.md](docs/EVIDENCE.md): proof for each graded claim
+- [INCIDENTS.md](docs/INCIDENTS.md): security incidents in the pipeline itself, and what changed
 - [RUBRIC-MAP.md](docs/RUBRIC-MAP.md): each rubric criterion → the file that satisfies it
 - [VALIDATION-LOG.md](docs/VALIDATION-LOG.md): what broke on real accounts, and the fixes
 - [SETUP.md](docs/SETUP.md) / `labs/`: the original course setup and labs
