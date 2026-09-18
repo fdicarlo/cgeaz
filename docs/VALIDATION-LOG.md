@@ -231,3 +231,24 @@ report was built from. Assessments are now append-only per run (docs/DECISIONS.m
 checkov's HCL parser treats `if` as a keyword and reports a parsing error for the whole
 file (so its checks silently don't run on it). Quoting the key (`"if" = {`) is valid HCL,
 survives `terraform fmt`, and produces identical JSON.
+
+### C7 — zip deploy rewrites app settings Terraform owns (caught by drift detection, day 1)
+`az functionapp deployment source config-zip --build-remote true` deletes
+`ENABLE_ORYX_BUILD` ("Removing ENABLE_ORYX_BUILD app setting"). The first nightly-style
+drift run reported both Function Apps as drifted. The setting is redundant with
+`SCM_DO_BUILD_DURING_DEPLOYMENT`, so it is no longer declared; plans converge.
+
+### C8 — GitHub OIDC now presents immutable-ID subjects
+Federation created with `repo:<owner>/<repo>:...` failed with AADSTS700213; the token's
+subject was `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/main`.
+`scripts/arm-ci.sh` now reads the IDs from the GitHub API and registers that form —
+which also means a deleted-and-recreated repo of the same name cannot inherit the
+federation.
+
+### C9 — `last` is a reserved word in KQL
+`summarize last = max(TimeGenerated)` fails with SYN0002. Columns renamed `lastRun`.
+
+### C10 — the budget API can 401 on a subscription minutes old
+First apply of `azurerm_consumption_budget_subscription` on a brand-new pay-as-you-go
+subscription: `401 Unauthorized` while checking for an existing budget, although the
+operator is Owner. Re-plan and apply ten minutes later succeeded unchanged.

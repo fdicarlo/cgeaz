@@ -24,3 +24,9 @@ lab1-evidence.json
 config.env
 # Local evidence scratch (the committed, redacted proofs live in evidence/)
 .scratch/
+
+# Saved plans embed prior state (keys, connection strings) — never commit
+*.plan
+tf.plan
+plan-output.txt
+plan.txt
