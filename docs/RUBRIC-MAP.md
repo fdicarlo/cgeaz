@@ -54,7 +54,7 @@ mechanical half.
 | Criterion | Where |
 |---|---|
 | Run history accumulating | collector hourly since deployment; [EVIDENCE#run-history](EVIDENCE.md#run-history) |
-| Gate demonstrably blocks | bad-plan proof on every push + closed test PR ([EVIDENCE#gate](EVIDENCE.md#gate)) |
+| Gate demonstrably blocks | bad-plan proof on every push + closed test PR #7 + branch protection requiring all 6 gate checks, enforced for admins ([EVIDENCE#gate](EVIDENCE.md#gate)) |
 | Enforcement in dry-run with a human at the approval gate | `scripts/prove-loop.sh approve` ([EVIDENCE#loop](EVIDENCE.md#loop)) |
 | Drift both ways | code drift (plan exit 2) + out-of-band (KQL alert + nightly job) |
 

@@ -60,6 +60,11 @@ compared field by field; SAR headline numbers recomputed from the embedded queri
     `min_tls_version must be TLS1_2 or higher`
   - The first attempt showed the plan gate being skipped whenever Tier 0 failed
     (`needs: static`). [PR #8](https://github.com/fdicarlo/cgeaz/pull/8) made the layers independent.
+- **Branch protection on `main` (2026-09-18, 14:40Z):** PR required (0 approvals, since this is a
+  solo repo), 6 required checks (`static` + `plan (…)` × 5 stages), enforced for admins, no
+  force-push or deletion. A direct push of an empty commit was refused:
+  `GH006: Protected branch update failed … Changes must be made through a pull request …
+  6 of 6 required status checks are expected.`
 - **Every governance change since deployment went through a gated PR:** #2, #5, #8, #9.
 
 ## Loop
