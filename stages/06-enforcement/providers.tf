@@ -6,22 +6,17 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.81"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.9"
-    }
   }
 
   backend "azurerm" {
-    key              = "04-reporting.tfstate"
+    key              = "06-enforcement.tfstate"
     use_azuread_auth = true
   }
 }
 
 provider "azurerm" {
   features {}
-  storage_use_azuread = true
-  subscription_id     = var.subscription_id
+  subscription_id = var.subscription_id
 }
 
 data "terraform_remote_state" "foundation" {
@@ -31,17 +26,6 @@ data "terraform_remote_state" "foundation" {
     storage_account_name = var.state_storage_account
     container_name       = "tfstate"
     key                  = "01-foundation.tfstate"
-    use_azuread_auth     = true
-  }
-}
-
-data "terraform_remote_state" "evidence" {
-  backend = "azurerm"
-  config = {
-    resource_group_name  = var.state_resource_group
-    storage_account_name = var.state_storage_account
-    container_name       = "tfstate"
-    key                  = "03-evidence-store.tfstate"
     use_azuread_auth     = true
   }
 }

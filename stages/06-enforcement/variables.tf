@@ -1,3 +1,8 @@
+variable "subscription_id" {
+  description = "The sandbox subscription (TF_VAR_subscription_id). Explicit targeting: never the ambient az context."
+  type        = string
+}
+
 variable "remediation_mode" {
   description = "Escalation ladder: audit -> dry-run -> enforce. Each step up should be a reviewed PR — automation acts, humans authorize."
   type        = string
@@ -9,15 +14,18 @@ variable "remediation_mode" {
 }
 
 variable "location" {
-  type    = string
-  default = "eastus"
+  description = "Assignment location (needed for the identity). Null = the foundation's region."
+  type        = string
+  default     = null
 }
 
 variable "state_resource_group" {
-  type    = string
-  default = "rg-grc-tfstate"
+  description = "Resource group holding the Terraform state storage account (from bootstrap.sh)."
+  type        = string
+  default     = "rg-grc-tfstate"
 }
 
 variable "state_storage_account" {
-  type = string
+  description = "Terraform state storage account name (from bootstrap.sh / backend.hcl)."
+  type        = string
 }

@@ -1,6 +1,7 @@
 locals {
   evidence_rg  = data.terraform_remote_state.foundation.outputs.evidence_resource_group_name
   subscription = data.terraform_remote_state.foundation.outputs.subscription_id
+  deployer     = coalesce(var.deployer_object_id, data.azurerm_client_config.current.object_id)
   common_tags = {
     env     = var.environment
     purpose = "grc-evidence-plane"
@@ -26,9 +27,19 @@ resource "azurerm_cosmosdb_account" "evidence" {
   # local_authentication_disabled was deprecated in favour of local_authentication_enabled
   # (removed in azurerm v5.0); the boolean inverts, so disabled=true becomes enabled=false.
   local_authentication_enabled = false
+  # Keys can't be used anyway; this also stops anything but ARM (i.e. Terraform, reviewed)
+  # from changing account metadata such as containers and throughput.
+  access_key_metadata_writes_enabled = false
 
   capabilities {
     name = "EnableServerless"
+  }
+
+  # Point-in-time restore: an evidence store that can't be recovered to a known moment
+  # is a single bad write away from losing its receipts. Continuous7Days is free tier.
+  backup {
+    type = "Continuous"
+    tier = "Continuous7Days"
   }
 
   consistency_policy {
@@ -49,9 +60,21 @@ resource "azurerm_cosmosdb_sql_database" "grc" {
   account_name        = azurerm_cosmosdb_account.evidence.name
 }
 
-# assessments: one document per finding per run. Partitioned by subscription+date query pattern.
+# assessments: APPEND-ONLY, one document per finding per run (id = hash(findingKey + runId)),
+# so any past report is reproducible by its runId query. Partitioned by subscription.
 resource "azurerm_cosmosdb_sql_container" "assessments" {
   name                = "assessments"
+  resource_group_name = local.evidence_rg
+  account_name        = azurerm_cosmosdb_account.evidence.name
+  database_name       = azurerm_cosmosdb_sql_database.grc.name
+  partition_key_paths = ["/subscriptionId"]
+}
+
+# runs: the run ledger. One document per collection sweep (runId, collectedAt, trigger,
+# counts, errors), written last, so a run exists only once its documents do. Reports
+# pin to the newest entry; the ledger is the run history that accumulates.
+resource "azurerm_cosmosdb_sql_container" "runs" {
+  name                = "runs"
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
   database_name       = azurerm_cosmosdb_sql_database.grc.name
@@ -92,6 +115,15 @@ resource "azurerm_storage_account" "evidence" {
 
   blob_properties {
     versioning_enabled = true
+
+    # Belt and braces under WORM: soft delete catches what immutability doesn't
+    # cover (e.g. a whole container, or blobs outside `reports`).
+    delete_retention_policy {
+      days = 30
+    }
+    container_delete_retention_policy {
+      days = 30
+    }
   }
 
   tags = local.common_tags
@@ -119,7 +151,7 @@ data "azurerm_client_config" "current" {}
 resource "azurerm_role_assignment" "deployer_blob_data" {
   scope                = azurerm_storage_account.evidence.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = local.deployer
 }
 
 # The deployer also seeds the frameworks/mappings containers (labs/04's seed script),
@@ -128,6 +160,30 @@ resource "azurerm_cosmosdb_sql_role_assignment" "deployer_cosmos_write" {
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
   role_definition_id  = "${azurerm_cosmosdb_account.evidence.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = data.azurerm_client_config.current.object_id
+  principal_id        = local.deployer
   scope               = azurerm_cosmosdb_account.evidence.id
+}
+
+# --- Who touched the evidence? Data-plane access logs for the store itself. ---
+# Every blob read/write/delete on the evidence account and every Cosmos data-plane
+# request land in the GRC workspace, next to the Activity Log. WORM stops tampering;
+# these logs show who looked.
+resource "azurerm_monitor_diagnostic_setting" "evidence_blob" {
+  name                       = "ds-evidence-blob-to-law"
+  target_resource_id         = "${azurerm_storage_account.evidence.id}/blobServices/default"
+  log_analytics_workspace_id = data.terraform_remote_state.foundation.outputs.log_analytics_workspace_id
+
+  enabled_log { category = "StorageRead" }
+  enabled_log { category = "StorageWrite" }
+  enabled_log { category = "StorageDelete" }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "evidence_cosmos" {
+  name                           = "ds-evidence-cosmos-to-law"
+  target_resource_id             = azurerm_cosmosdb_account.evidence.id
+  log_analytics_workspace_id     = data.terraform_remote_state.foundation.outputs.log_analytics_workspace_id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log { category = "DataPlaneRequests" }
+  enabled_log { category = "ControlPlaneRequests" }
 }

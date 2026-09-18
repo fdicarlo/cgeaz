@@ -30,3 +30,18 @@ output "remediation_identity_principal_id" {
   description = "Principal ID — use to filter the Activity Log for automated changes."
   value       = azurerm_user_assigned_identity.remediation.principal_id
 }
+
+output "baseline_assignment_id" {
+  description = "The GRC Baseline initiative assignment — the handle policy exemptions in later stages attach to."
+  value       = azurerm_management_group_policy_assignment.grc_baseline.id
+}
+
+output "action_group_id" {
+  description = "Where GRC alerts go (tripwire, budget-adjacent alerts in later stages)."
+  value       = azurerm_monitor_action_group.grc.id
+}
+
+output "location" {
+  description = "Foundation region; later stages default their policy-assignment location to it."
+  value       = var.location
+}

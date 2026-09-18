@@ -28,3 +28,13 @@ output "collector_principal_id" {
   description = "The collector identity — filter logs by this to see every evidence write."
   value       = azurerm_linux_function_app.collectors.identity[0].principal_id
 }
+
+output "app_insights_connection_string" {
+  description = "Shared pipeline telemetry sink; stage 04's reporter writes its run history here too."
+  value       = azurerm_application_insights.pipeline.connection_string
+  sensitive   = true
+}
+
+output "evidence_storage_account_id" {
+  value = azurerm_storage_account.evidence.id
+}

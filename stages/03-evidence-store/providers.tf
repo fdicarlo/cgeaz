@@ -4,11 +4,11 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 4.0"
+      version = "~> 4.81"
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "~> 3.9"
     }
   }
 
@@ -23,6 +23,7 @@ provider "azurerm" {
   # Data-plane operations (containers, blobs) authenticate with Entra ID, not account keys —
   # required because the evidence storage account disables shared keys entirely.
   storage_use_azuread = true
+  subscription_id     = var.subscription_id
 }
 
 # Stage contract: consume the foundation's outputs, never its internals.

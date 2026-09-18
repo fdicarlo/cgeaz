@@ -1,32 +1,3 @@
-terraform {
-  required_version = ">= 1.9"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 4.0"
-    }
-    # azurerm has a RESOURCE for Defender plan pricing but no data source —
-    # azapi fills that gap by reading any ARM resource. This is the discovery
-    # pattern for anything the azurerm provider can't yet interrogate.
-    azapi = {
-      source  = "azure/azapi"
-      version = "~> 2.0"
-    }
-  }
-
-  backend "azurerm" {
-    key              = "02-activation.tfstate"
-    use_azuread_auth = true
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
-provider "azapi" {}
-
 data "azurerm_subscription" "current" {}
 
 # ---------------------------------------------------------------------------
@@ -44,7 +15,29 @@ data "azapi_resource" "pricing" {
   response_export_values = ["properties.pricingTier"]
 }
 
+# What is actually running: a typed inventory from Azure Resource Graph (resource count
+# per type). Discovery's second output, next to the gap map: activation only earns
+# its keep if you know what it is protecting. Storage and Key Vault counts are what
+# the two baseline Defender plans bill against.
+data "azapi_resource_action" "inventory" {
+  type        = "Microsoft.ResourceGraph@2022-10-01"
+  resource_id = "/providers/Microsoft.ResourceGraph"
+  action      = "resources"
+  method      = "POST"
+  body = {
+    subscriptions = [data.azurerm_subscription.current.subscription_id]
+    query         = "Resources | summarize count() by type | order by type asc"
+    options       = { resultFormat = "objectArray" }
+  }
+  response_export_values = ["data"]
+}
+
 locals {
+  inventory = {
+    for row in try(data.azapi_resource_action.inventory.output.data, []) :
+    row.type => row.count_
+  }
+
   current_tier = {
     for plan, d in data.azapi_resource.pricing :
     plan => d.output.properties.pricingTier
@@ -69,6 +62,10 @@ locals {
 # to Free, which is precisely what course cleanup wants.
 # ---------------------------------------------------------------------------
 
+# Activation acts only inside the baseline and is driven by discovery: a plan already at
+# Standard converges with no change; a Free plan in the gap map is the only thing an
+# apply moves.
+# Keyed on the baseline (not the gap) on purpose: see VALIDATION-LOG F13.
 resource "azurerm_security_center_subscription_pricing" "baseline" {
   for_each = var.baseline_plans
 
@@ -87,3 +84,4 @@ resource "azurerm_subscription_policy_assignment" "nist_csf_20" {
   policy_definition_id = "/providers/Microsoft.Authorization/policySetDefinitions/184a0e05-7b06-4a68-bbbe-13b8353bc613"
   subscription_id      = data.azurerm_subscription.current.id
 }
+
