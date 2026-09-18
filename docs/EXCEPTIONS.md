@@ -12,6 +12,7 @@ code (policy exemption / `policy/exceptions.rego`), and the code points back her
 | [EXC-03](#exc-03) | Tier 0 checkov findings | listed checks | `.checkov.yaml` | review before any production use |
 | [EXC-04](#exc-04) | WORM locked | `reports` container | `stages/03-evidence-store/main.tf` comment | at course end |
 | [EXC-05](#exc-05) | Changes go through CI | Terraform applies | n/a (process) | when CI gets an apply identity |
+| [EXC-06](#exc-06) | Every out-of-band write alerts | three Microsoft platform identities acting for Defender | `TRUSTED_CALLERS` (config.env / repo variable) | on any Defender plan change |
 
 ## EXC-01
 
@@ -64,3 +65,23 @@ by design ([DECISIONS D4](DECISIONS.md#d4-plan-only-ci-identity)). The compensat
 controls are: apply only from a commit that passed the gate on `main`, the out-of-band
 tripwire records every apply by caller, and nightly drift detection proves state
 converged.
+
+## EXC-06
+
+**Microsoft platform identities are trusted by the out-of-band tripwire.** Turning on the
+Defender plans (stage 02) causes Azure's own service principals to write to the
+subscription: they register data scanners, create Event Grid subscriptions for malware
+scanning, and grant Defender's storage operator its roles. The first nightly run filed
+them as out-of-band changes. They are platform behaviour caused by a reviewed change,
+not people going around the repo, so they are trusted by **object ID, named here**:
+
+| Object ID | Display name | Owner |
+|---|---|---|
+| `cae667b9-3de4-4ebc-8606-ca2140e259f4` | Windows Azure Security Resource Provider | Microsoft (first-party) |
+| `a1d09207-1a02-432e-9a7c-2ec50fb3d89b` | Microsoft Defender for Cloud Scanner Resource Provider | Microsoft (first-party) |
+| `0a4874cf-c7f5-44fe-b971-837fa2ee28e9` | StorageAccounts/securityOperators/DefenderForStorageSecurityOperator | Defender-managed identity in this tenant |
+
+- *What this costs:* writes by these three are invisible to detector 2. Detector 1
+  (Terraform drift) still sees any change they make to a resource this repo manages.
+- *Review:* whenever the Defender baseline in stage 02 changes, re-run the out-of-band
+  query with an empty trusted list and reconcile this table.

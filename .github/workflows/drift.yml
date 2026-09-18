@@ -65,9 +65,19 @@ jobs:
         run: |
           terraform init -input=false -backend-config=../../labs/03-foundation/backend.hcl >/dev/null
           set +e
-          terraform plan -input=false -lock=false -detailed-exitcode -no-color > plan-output.txt 2>&1
+          terraform plan -input=false -lock=false -detailed-exitcode -no-color -out=drift.plan > plan-output.txt 2>&1
           code=$?
           set -e
+          # Exit 2 also fires when only OUTPUTS differ — and stage 02's discovery outputs
+          # (live tiers, Resource Graph inventory) change whenever reality does, by design.
+          # Drift means a RESOURCE would change; output-only diffs are reported, not filed.
+          if [ "$code" = "2" ]; then
+            changed=$(terraform show -json drift.plan | jq '[.resource_changes[]? | select(.change.actions != ["no-op"] and .change.actions != ["read"])] | length')
+            if [ "$changed" = "0" ]; then
+              echo "only outputs changed (discovery reflects live state) — not drift"
+              code=0
+            fi
+          fi
           echo "exitcode=$code" >> "$GITHUB_OUTPUT"
           tail -n 40 plan-output.txt
           {
