@@ -1,5 +1,10 @@
 # GRC Engineering Pipeline on Azure: CGE-AZ Capstone
 
+> **Status: decommissioned 2026-09-18.** The capstone passed, and the Azure environment was torn
+> down (every stage destroyed in reverse order; see [EVIDENCE.md](docs/EVIDENCE.md#decommissioning)).
+> The code, docs and evidence stay here as a reference; `scripts/deploy.sh` still
+> stands the whole pipeline up again in any empty subscription.
+
 An automated GRC pipeline that runs in its own Azure subscription. It discovers what is
 running, turns on the missing Defender coverage, collects control evidence into a store
 nobody can rewrite, generates auditor deliverables from that store alone, and fixes
