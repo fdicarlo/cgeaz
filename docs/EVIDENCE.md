@@ -76,6 +76,15 @@ re-escalation as reviewed PRs.
 - Re-escalation: [PR #10](https://github.com/fdicarlo/cgeaz/pull/10), Audit → Deny. The same sabotage retried is refused with `RequestDisallowedByPolicy` (`cge-deny-public-blob`).
 - Honest note: the first `verify` printed its RESULT line before the Activity Log held the remediation write (script bug, fixed in #10). The log keeps the wrong line, annotated, next to the corrected entries.
 
+## DINE remediation
+
+[`evidence/remediation-2026-09-18.md`](../evidence/remediation-2026-09-18.md) (`scripts/approve-remediation.sh storage-diagnostics`):
+- 14:27 the operator approves task `remediate-storage-diagnostics-1789741668` for the state
+  account (which existed before the policy): Succeeded, 1 ok / 0 failed.
+- Activity Log: `diagnosticSettings/write` at 14:28:15Z by `924ca48e…` = `id-grc-remediation-dev`.
+- The loop target got the same setting **automatically** at 14:08:11Z, same identity: DINE
+  acts on create/update without a task.
+
 ## Run history
 
 - Ledger: `SELECT c.runId, c.collectedAt, c.trigger, c.written FROM c ORDER BY c.collectedAt DESC` on `runs`

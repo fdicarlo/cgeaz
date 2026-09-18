@@ -98,6 +98,10 @@ deploy_code() {
   (cd "$dir" && zip -qr "$zipf" . -x 'tests/*' '__pycache__/*' '*.pyc' '.venv/*')
   az functionapp deployment source config-zip --name "$app" --resource-group "$EVIDENCE_RG" \
     --src "$zipf" --build-remote true --timeout 900 --output none
+  # Without an explicit sync, the platform can keep serving the PREVIOUS trigger metadata
+  # (timer schedules, function names) after a successful zip deploy (VALIDATION-LOG C14).
+  az rest --method POST --output none --url \
+    "https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$EVIDENCE_RG/providers/Microsoft.Web/sites/$app/syncfunctiontriggers?api-version=2023-12-01"
   for _ in $(seq 1 20); do
     n=$(az functionapp function list --name "$app" --resource-group "$EVIDENCE_RG" --query "length(@)" -o tsv 2>/dev/null || echo 0)
     [ "${n:-0}" -gt 0 ] && { echo "   $n functions indexed"; return 0; }
