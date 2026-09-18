@@ -110,7 +110,9 @@ jobs:
     # sandbox subscription only. The CI identity is plan-only (custom role, no writes).
     if: ${{ vars.AZURE_CLIENT_ID != '' }}
     name: plan (${{ matrix.stage }})
-    needs: static
+    # Deliberately NOT `needs: static`: the two layers are independent controls. A change
+    # that trips Tier 0 must also be shown failing the policy gate on its real plan
+    # (defense in depth, and the evidence that each layer works on its own).
     runs-on: ubuntu-latest
     permissions:
       id-token: write # OIDC federation — no client secret stored in GitHub, nothing to rotate
